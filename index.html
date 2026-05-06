@@ -145,6 +145,8 @@
                         <div class="input-group"><label>Max Devices</label><input type="number" id="maxDevices" value="1"></div>
                         <div class="input-group"><label>Custom Key</label><input type="text" id="customKey" placeholder="Optional"></div>
                     </div>
+                    <div class="form-grid"><div class="input-group"><label><i class="fas fa-lock"></i> Security Binding Type</label><select id="bindingType"><option value="device">🔒 Device Fingerprint (Recommended)</option><option value="ip">🌐 IP Address Lock</option><option value="both">⚡ Both IP & Device (Most Secure)</option><option value="none">🌍 No Lock (Insecure)</option></select><small>Device fingerprint locks key to specific browser/device</small></div>
+                      </div>
                     <button class="btn" onclick="addKey()"><i class="fas fa-magic"></i> Create Key</button>
                     <div id="addMsg"></div>
                 </div>
@@ -387,21 +389,121 @@
         }
 
         async function addKey() {
-            const userId = document.getElementById('userId').value;
-            const days = parseInt(document.getElementById('days').value) || 0;
-            const hours = parseInt(document.getElementById('hours').value) || 0;
-            const minutes = parseInt(document.getElementById('minutes').value) || 0;
-            const maxDevices = parseInt(document.getElementById('maxDevices').value) || 1;
-            const keyText = document.getElementById('customKey').value;
-            if (!userId) { alert('User ID required'); return; }
-            showLoading(true);
-            try {
-                const res = await fetch(`${BASE_API}/api/admin/add-key`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, userId, days, hours, minutes, maxDevices, keyText }) });
-                const data = await res.json();
-                if (data.success) { alert(`Key created: ${data.key}`); loadStats(); loadKeys(); }
-                else { alert(data.error); }
-            } catch(e) { alert('Error'); } finally { showLoading(false); }
+    // Ambil nilai dari form
+    const userId = document.getElementById('userId')?.value;
+    const days = parseInt(document.getElementById('days')?.value) || 0;
+    const hours = parseInt(document.getElementById('hours')?.value) || 0;
+    const minutes = parseInt(document.getElementById('minutes')?.value) || 0;
+    const maxDevices = parseInt(document.getElementById('maxDevices')?.value) || 1;
+    const keyText = document.getElementById('customKey')?.value;
+    const bindingType = document.getElementById('bindingType')?.value || 'device';
+    const lockToIp = document.getElementById('lockToIp')?.value || null;
+    
+    // Validasi input
+    if (!userId) {
+        showToast('User ID required', 'error');
+        return;
+    }
+    
+    if (days === 0 && hours === 0 && minutes === 0) {
+        showToast('Please set duration (days, hours, or minutes)', 'error');
+        return;
+    }
+    
+    // Konfirmasi sebelum create
+    if (!confirm(`Create key for user: ${userId}\nDuration: ${days}d ${hours}h ${minutes}m\nMax Devices: ${maxDevices}\nBinding: ${bindingType}\n\nContinue?`)) {
+        return;
+    }
+    
+    showLoading(true);
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/admin/add-key`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                token: token,
+                userId: userId,
+                days: days,
+                hours: hours,
+                minutes: minutes,
+                maxDevices: maxDevices,
+                keyText: keyText,
+                bindingType: bindingType,
+                lockToIp: lockToIp
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Format pesan durasi
+            let durationMsg = '';
+            if (days > 0) durationMsg += `${days} day${days > 1 ? 's' : ''} `;
+            if (hours > 0) durationMsg += `${hours} hour${hours > 1 ? 's' : ''} `;
+            if (minutes > 0) durationMsg += `${minutes} minute${minutes > 1 ? 's' : ''}`;
+            if (!durationMsg) durationMsg = `${data.duration?.totalHours || 0} hours`;
+            
+            // Format binding message
+            let bindingMsg = '';
+            switch(bindingType) {
+                case 'device': bindingMsg = '🔒 Device Fingerprint Lock'; break;
+                case 'ip': bindingMsg = '🌐 IP Address Lock'; break;
+                case 'both': bindingMsg = '⚡ Both IP & Device Lock'; break;
+                case 'none': bindingMsg = '🌍 No Lock (Insecure)'; break;
+                default: bindingMsg = '🔒 Device Fingerprint Lock';
+            }
+            
+            showToast(`✅ Key created: ${data.key}`, 'success');
+            
+            const addMsg = document.getElementById('addMsg');
+            if (addMsg) {
+                addMsg.innerHTML = `
+                    <div class="alert alert-success" style="margin-top: 16px;">
+                        <i class="fas fa-check-circle"></i> 
+                        <strong>Key created successfully!</strong><br>
+                        🔑 Key: <code style="background:rgba(0,0,0,0.5); padding:4px 8px; border-radius:8px;">${data.key}</code><br>
+                        📅 Expires: ${data.expiryFormatted}<br>
+                        ⏰ Duration: ${durationMsg.trim()}<br>
+                        📱 Max Devices: ${maxDevices}<br>
+                        🔐 ${bindingMsg}
+                    </div>
+                `;
+            }
+            
+            // Refresh data
+            loadStats();
+            loadKeys();
+            
+            // Reset form (optional)
+            document.getElementById('userId').value = '';
+            document.getElementById('customKey').value = '';
+            document.getElementById('days').value = '0';
+            document.getElementById('hours').value = '3';
+            document.getElementById('minutes').value = '0';
+            document.getElementById('maxDevices').value = '1';
+            
+        } else {
+            showToast(`❌ Failed: ${data.error}`, 'error');
+            const addMsg = document.getElementById('addMsg');
+            if (addMsg) {
+                addMsg.innerHTML = `<div class="alert alert-error" style="margin-top: 16px;"><i class="fas fa-exclamation-circle"></i> Error: ${data.error}</div>`;
+            }
         }
+        
+    } catch (error) {
+        console.error('Add key error:', error);
+        showToast(`❌ Network error: ${error.message}`, 'error');
+        const addMsg = document.getElementById('addMsg');
+        if (addMsg) {
+            addMsg.innerHTML = `<div class="alert alert-error" style="margin-top: 16px;"><i class="fas fa-exclamation-circle"></i> Network error: ${error.message}</div>`;
+        }
+    } finally {
+        showLoading(false);
+    }
+}
 
         async function deleteKey(key) { if(confirm('Delete?')){ showLoading(true); await fetch(`${BASE_API}/api/admin/delete-key`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, key}) }); loadKeys(); loadStats(); showLoading(false); } }
         async function deleteAllKeys() { if(confirm('Delete ALL keys?')){ showLoading(true); const { data } = await fetch(`${BASE_API}/api/admin/keys`,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token}) }).then(r=>r.json()); if(data.keys){ for(const k of data.keys){ await fetch(`${BASE_API}/api/admin/delete-key`,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, key:k.key_text}) }); } } loadKeys(); loadStats(); showLoading(false); } }
