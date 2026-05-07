@@ -511,60 +511,104 @@
     
     <script>
         const API_BASE = "https://system-nexus-key.vercel.app";
-        let token = null;
-        let statusChart = null;
-        let activityChart = null;
         
-        function showLoading(show) { document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none'; }
-        function showToast(msg, type) { alert(msg); }
-        
-        // ==================== LOGIN ====================
-        async function adminLogin() {
-            const username = document.getElementById('adminUser').value;
-            const password = document.getElementById('adminPass').value;
-            showLoading(true);
-            try {
-                const res = await fetch(`${API_BASE}/api/admin/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
-                const data = await res.json();
-                if (data.success) {
-                    token = data.token;
-                    localStorage.setItem('admin_token', token);
-                    document.getElementById('loginContainer').style.display = 'none';
-                    document.getElementById('dashboard').style.display = 'block';
-                    initCharts();
-                    refreshAllData();
-                } else { document.getElementById('loginMsg').innerHTML = `<div class="alert alert-error">${data.error}</div>`; }
-            } catch(err) { document.getElementById('loginMsg').innerHTML = `<div class="alert alert-error">Connection error</div>`; }
-            finally { showLoading(false); }
-        }
-        
-        function adminLogout() { localStorage.removeItem('admin_token'); token = null; document.getElementById('loginContainer').style.display = 'flex'; document.getElementById('dashboard').style.display = 'none'; }
-        
-        async function refreshAllData() {
-            showLoading(true);
-            await Promise.all([
-                loadStats(), loadKeys(), loadUsers(), loadResellers(), loadCoinTransactions(),
-                loadBannedIps(), loadBannedDevices(), loadSecurityLogs(), loadAnnouncements(),
-                loadBroadcastHistory(), loadSettings(), checkMaintenanceStatus()
-            ]);
+    let token = null;
+    let statusChart = null;
+    let activityChart = null;
+    
+    function showLoading(show) { 
+        const overlay = document.getElementById('loadingOverlay');
+        if (overlay) overlay.style.display = show ? 'flex' : 'none';
+    }
+    
+    function showToast(msg, type) { 
+        console.log(msg);
+        alert(msg); 
+    }
+    
+    // ==================== LOGIN ====================
+    async function adminLogin() {
+        const username = document.getElementById('adminUser').value;
+        const password = document.getElementById('adminPass').value;
+        showLoading(true);
+        try {
+            const res = await fetch(`${API_BASE}/api/admin/login`, { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ username, password }) 
+            });
+            const data = await res.json();
+            if (data.success) {
+                token = data.token;
+                localStorage.setItem('admin_token', token);
+                document.getElementById('loginContainer').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+                initCharts();
+                refreshAllData();
+            } else { 
+                document.getElementById('loginMsg').innerHTML = `<div class="alert alert-error">${data.error}</div>`; 
+            }
+        } catch(err) { 
+            document.getElementById('loginMsg').innerHTML = `<div class="alert alert-error">Connection error: ${err.message}</div>`; 
+        } finally {
             showLoading(false);
+        }
+    }
+    
+    function adminLogout() { 
+        localStorage.removeItem('admin_token'); 
+        token = null; 
+        document.getElementById('loginContainer').style.display = 'flex'; 
+        document.getElementById('dashboard').style.display = 'none'; 
+    }
+    
+    async function refreshAllData() {
+        showLoading(true);
+        try {
+            await loadStats();
+            await loadKeys();
+            await loadUsers();
+            await loadResellers();
+            await loadCoinTransactions();
+            await loadBannedIps();
+            await loadBannedDevices();
+            await loadSecurityLogs();
+            await loadAnnouncements();
+            await loadBroadcastHistory();
+            await loadSettings();
+            await checkMaintenanceStatus();
             showToast('All data refreshed', 'success');
+        } catch(err) {
+            console.error('Refresh error:', err);
+            showToast('Error loading data: ' + err.message, 'error');
+        } finally {
+            showLoading(false);
         }
-        
-        // ==================== CHARTS ====================
-        function initCharts() {
-            const ctx1 = document.getElementById('statusChart');
-            const ctx2 = document.getElementById('activityChart');
-            if (ctx1) {
-                statusChart = new Chart(ctx1, { type: 'doughnut', data: { labels: ['Active', 'Expired'], datasets: [{ data: [0, 0], backgroundColor: ['#10b981', '#ef4444'] }] }, options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { labels: { color: 'white' } } } } });
-            }
-            if (ctx2) {
-                activityChart = new Chart(ctx2, { type: 'line', data: { labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], datasets: [{ label: 'Keys Created', data: [0,0,0,0,0,0,0], borderColor: '#ff4b4b', backgroundColor: 'rgba(255,75,75,0.1)', fill: true }] }, options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { labels: { color: 'white' } } }, scales: { y: { ticks: { color: 'white' } }, x: { ticks: { color: 'white' } } } } });
-            }
+    }
+    
+    // ==================== CHARTS ====================
+    function initCharts() {
+        const ctx1 = document.getElementById('statusChart');
+        const ctx2 = document.getElementById('activityChart');
+        if (ctx1) {
+            statusChart = new Chart(ctx1, { 
+                type: 'doughnut', 
+                data: { labels: ['Active', 'Expired'], datasets: [{ data: [0, 0], backgroundColor: ['#10b981', '#ef4444'] }] }, 
+                options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { labels: { color: 'white' } } } } 
+            });
         }
-        
-        // ==================== STATS ====================
-        async function loadStats() {
+        if (ctx2) {
+            activityChart = new Chart(ctx2, { 
+                type: 'line', 
+                data: { labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], datasets: [{ label: 'Keys Created', data: [0,0,0,0,0,0,0], borderColor: '#ff4b4b', backgroundColor: 'rgba(255,75,75,0.1)', fill: true }] }, 
+                options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { labels: { color: 'white' } } }, scales: { y: { ticks: { color: 'white' } }, x: { ticks: { color: 'white' } } } } 
+            });
+        }
+    }
+    
+    // ==================== STATS ====================
+    async function loadStats() {
+        try {
             const res = await fetch(`${API_BASE}/api/admin/stats`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
             const data = await res.json();
             if (data.success) {
@@ -579,10 +623,15 @@
                 if (statusChart) statusChart.data.datasets[0].data = [data.stats.activeKeys, data.stats.totalKeys - data.stats.activeKeys];
                 if (statusChart) statusChart.update();
             }
+        } catch(err) {
+            console.error('loadStats error:', err);
+            document.getElementById('statsGrid').innerHTML = '<div class="alert alert-error">Failed to load stats</div>';
         }
-        
-        // ==================== KEYS ====================
-        async function loadKeys() {
+    }
+    
+    // ==================== KEYS ====================
+    async function loadKeys() {
+        try {
             const res = await fetch(`${API_BASE}/api/admin/keys`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
             const data = await res.json();
             if (data.success && data.keys) {
@@ -593,54 +642,103 @@
                         <button class="btn btn-danger btn-sm" onclick="deleteKey('${k.key_text}')" style="margin-top: 6px;">Delete</button>
                     </div>
                 `).join('');
+            } else {
+                document.getElementById('keysList').innerHTML = '<div class="alert alert-info">No keys found</div>';
             }
+        } catch(err) {
+            console.error('loadKeys error:', err);
+            document.getElementById('keysList').innerHTML = '<div class="alert alert-error">Failed to load keys</div>';
         }
+    }
+    
+    async function addKey() {
+        const userId = document.getElementById('userId').value;
+        if (!userId) { alert('User ID required'); return; }
+        const days = parseInt(document.getElementById('days').value) || 0;
+        const hours = parseInt(document.getElementById('hours').value) || 0;
+        const minutes = parseInt(document.getElementById('minutes').value) || 0;
+        const maxDevices = parseInt(document.getElementById('maxDevices').value) || 1;
+        const keyText = document.getElementById('customKey').value;
+        const bindingType = document.getElementById('bindingType').value;
         
-        async function addKey() {
-            const userId = document.getElementById('userId').value;
-            if (!userId) { alert('User ID required'); return; }
-            const days = parseInt(document.getElementById('days').value) || 0;
-            const hours = parseInt(document.getElementById('hours').value) || 0;
-            const minutes = parseInt(document.getElementById('minutes').value) || 0;
-            const maxDevices = parseInt(document.getElementById('maxDevices').value) || 1;
-            const keyText = document.getElementById('customKey').value;
-            const bindingType = document.getElementById('bindingType').value;
-            
-            showLoading(true);
+        showLoading(true);
+        try {
             const res = await fetch(`${API_BASE}/api/admin/add-key`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, userId, days, hours, minutes, maxDevices, keyText, bindingType }) });
             const data = await res.json();
-            if (data.success) { showToast(`Key created: ${data.key}`, 'success'); loadKeys(); loadStats(); }
-            else { alert(data.error); }
-            showLoading(false);
+            if (data.success) { 
+                showToast(`Key created: ${data.key}`, 'success'); 
+                loadKeys(); 
+                loadStats(); 
+            } else { 
+                alert(data.error); 
+            }
+        } catch(err) { 
+            alert('Error: ' + err.message); 
         }
+        showLoading(false);
+    }
+    
+    async function deleteKey(key) { 
+        if(confirm('Delete this key?')){ 
+            showLoading(true); 
+            await fetch(`${API_BASE}/api/admin/delete-key`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, key}) }); 
+            loadKeys(); 
+            loadStats(); 
+            showLoading(false); 
+        } 
+    }
+    
+    async function deleteExpiredKeys() { 
+        if(confirm('Delete all expired keys?')){ 
+            showLoading(true); 
+            await fetch(`${API_BASE}/api/admin/delete-expired-keys`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token}) }); 
+            loadKeys(); 
+            loadStats(); 
+            showLoading(false); 
+        } 
+    }
+    
+    async function deleteAllKeys() { 
+        if(confirm('⚠️ DELETE ALL KEYS? This cannot be undone!')){ 
+            showLoading(true); 
+            await fetch(`${API_BASE}/api/admin/delete-all-keys`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token}) }); 
+            loadKeys(); 
+            loadStats(); 
+            showLoading(false); 
+        } 
+    }
+    
+    // ==================== BULK KEYS ====================
+    async function bulkKeys() {
+        const userId = document.getElementById('bulkUserId').value;
+        if (!userId) { alert('User ID required'); return; }
+        const count = parseInt(document.getElementById('bulkCount').value) || 1;
+        const days = parseInt(document.getElementById('bulkDays').value) || 0;
+        const hours = parseInt(document.getElementById('bulkHours').value) || 0;
+        const minutes = parseInt(document.getElementById('bulkMinutes').value) || 0;
+        const maxDevices = parseInt(document.getElementById('bulkMaxDevices').value) || 1;
+        const bindingType = document.getElementById('bulkBindingType').value;
         
-        async function deleteKey(key) { if(confirm('Delete this key?')){ showLoading(true); await fetch(`${API_BASE}/api/admin/delete-key`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, key}) }); loadKeys(); loadStats(); showLoading(false); } }
-        async function deleteExpiredKeys() { if(confirm('Delete all expired keys?')){ showLoading(true); await fetch(`${API_BASE}/api/admin/delete-expired-keys`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token}) }); loadKeys(); loadStats(); showLoading(false); } }
-        async function deleteAllKeys() { if(confirm('⚠️ DELETE ALL KEYS? This cannot be undone!')){ showLoading(true); await fetch(`${API_BASE}/api/admin/delete-all-keys`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token}) }); loadKeys(); loadStats(); showLoading(false); } }
-        
-        // ==================== BULK KEYS ====================
-        async function bulkKeys() {
-            const userId = document.getElementById('bulkUserId').value;
-            if (!userId) { alert('User ID required'); return; }
-            const count = parseInt(document.getElementById('bulkCount').value) || 1;
-            const days = parseInt(document.getElementById('bulkDays').value) || 0;
-            const hours = parseInt(document.getElementById('bulkHours').value) || 0;
-            const minutes = parseInt(document.getElementById('bulkMinutes').value) || 0;
-            const maxDevices = parseInt(document.getElementById('bulkMaxDevices').value) || 1;
-            const bindingType = document.getElementById('bulkBindingType').value;
-            
-            showLoading(true);
+        showLoading(true);
+        try {
             const res = await fetch(`${API_BASE}/api/admin/add-bulk-keys`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, userId, count, days, hours, minutes, maxDevices, bindingType }) });
             const data = await res.json();
             if (data.success) {
                 document.getElementById('bulkResult').innerHTML = `<div class="alert alert-success">✅ Generated ${data.count} keys!<br>${data.keys.map(k => `🔑 ${k}`).join('<br>')}</div>`;
-                loadKeys(); loadStats();
-            } else { alert(data.error); }
-            showLoading(false);
+                loadKeys(); 
+                loadStats();
+            } else { 
+                alert(data.error); 
+            }
+        } catch(err) { 
+            alert('Error: ' + err.message); 
         }
-        
-        // ==================== USERS ====================
-        async function loadUsers() {
+        showLoading(false);
+    }
+    
+    // ==================== USERS ====================
+    async function loadUsers() {
+        try {
             const res = await fetch(`${API_BASE}/api/admin/users`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
             const data = await res.json();
             if (data.success && data.users) {
@@ -652,12 +750,22 @@
                     </div>
                 `).join('');
             }
-        }
-        async function banUser(userId) { await fetch(`${API_BASE}/api/admin/ban-user`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, userId}) }); loadUsers(); }
-        async function unbanUser(userId) { await fetch(`${API_BASE}/api/admin/unban-user`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, userId}) }); loadUsers(); }
-        
-        // ==================== RESELLERS ====================
-        async function loadResellers() {
+        } catch(err) { console.error('loadUsers error:', err); }
+    }
+    
+    async function banUser(userId) { 
+        await fetch(`${API_BASE}/api/admin/ban-user`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, userId}) }); 
+        loadUsers(); 
+    }
+    
+    async function unbanUser(userId) { 
+        await fetch(`${API_BASE}/api/admin/unban-user`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, userId}) }); 
+        loadUsers(); 
+    }
+    
+    // ==================== RESELLERS ====================
+    async function loadResellers() {
+        try {
             const res = await fetch(`${API_BASE}/api/admin/resellers`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
             const data = await res.json();
             if (data.success && data.resellers) {
@@ -669,23 +777,33 @@
                     </div>
                 `).join('');
             }
-        }
-        
-        async function createReseller() {
-            const username = document.getElementById('resellerUser').value;
-            const password = document.getElementById('resellerPass').value;
-            const initialCoins = parseInt(document.getElementById('initialCoins').value) || 0;
-            if (!username || !password) { alert('Username and password required'); return; }
-            showLoading(true);
+        } catch(err) { console.error('loadResellers error:', err); }
+    }
+    
+    async function createReseller() {
+        const username = document.getElementById('resellerUser').value;
+        const password = document.getElementById('resellerPass').value;
+        const initialCoins = parseInt(document.getElementById('initialCoins').value) || 0;
+        if (!username || !password) { alert('Username and password required'); return; }
+        showLoading(true);
+        try {
             const res = await fetch(`${API_BASE}/api/admin/create-reseller`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, username, password, initialCoins }) });
             const data = await res.json();
-            if (data.success) { showToast(data.message, 'success'); loadResellers(); }
-            else { alert(data.error); }
-            showLoading(false);
+            if (data.success) { 
+                showToast(data.message, 'success'); 
+                loadResellers(); 
+            } else { 
+                alert(data.error); 
+            }
+        } catch(err) { 
+            alert('Error: ' + err.message); 
         }
-        
-        async function loadResellerKeys() {
-            const resellerId = document.getElementById('filterResellerId').value;
+        showLoading(false);
+    }
+    
+    async function loadResellerKeys() {
+        const resellerId = document.getElementById('filterResellerId').value;
+        try {
             const res = await fetch(`${API_BASE}/api/admin/reseller-keys`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, resellerId }) });
             const data = await res.json();
             if (data.success && data.keys) {
@@ -693,23 +811,37 @@
                     <div class="list-item"><div>🔑 ${k.key_text}</div><div style="font-size: 11px;">${k.duration_days}d | ${k.max_devices}d | ${k.price_coins} coins | Buyer: ${k.buyer_email || '-'}</div><div>${new Date(k.created_at).toLocaleString()}</div></div>
                 `).join('');
             }
-        }
-        
-        // ==================== COINS ====================
-        function quickAddCoins(userId) { document.getElementById('coinUserId').value = userId; document.getElementById('coinAmount').value = 100; document.getElementById('coinReason').value = 'Bonus from admin'; addCoins(); }
-        
-        async function addCoins() {
-            const userId = document.getElementById('coinUserId').value;
-            const amount = parseInt(document.getElementById('coinAmount').value);
-            const reason = document.getElementById('coinReason').value;
-            if (!userId) { alert('User ID required'); return; }
-            showLoading(true);
+        } catch(err) { console.error('loadResellerKeys error:', err); }
+    }
+    
+    // ==================== COINS ====================
+    function quickAddCoins(userId) { 
+        document.getElementById('coinUserId').value = userId; 
+        document.getElementById('coinAmount').value = 100; 
+        document.getElementById('coinReason').value = 'Bonus from admin'; 
+        addCoins(); 
+    }
+    
+    async function addCoins() {
+        const userId = document.getElementById('coinUserId').value;
+        const amount = parseInt(document.getElementById('coinAmount').value);
+        const reason = document.getElementById('coinReason').value;
+        if (!userId) { alert('User ID required'); return; }
+        showLoading(true);
+        try {
             await fetch(`${API_BASE}/api/admin/add-coins`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, userId, amount, reason }) });
-            loadCoinTransactions(); loadResellers(); loadUsers();
-            showLoading(false);
+            loadCoinTransactions(); 
+            loadResellers(); 
+            loadUsers();
+            showToast('Coins updated', 'success');
+        } catch(err) { 
+            alert('Error: ' + err.message); 
         }
-        
-        async function loadCoinTransactions() {
+        showLoading(false);
+    }
+    
+    async function loadCoinTransactions() {
+        try {
             const res = await fetch(`${API_BASE}/api/admin/coin-transactions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
             const data = await res.json();
             if (data.success && data.transactions) {
@@ -719,18 +851,21 @@
                     <div style="font-size: 10px;">${new Date(t.created_at).toLocaleString()}</div>
                 `).join('');
             }
-        }
-        
-        // ==================== DEVICES ====================
-        async function loadDevices() {
-            const key = document.getElementById('deviceKey').value;
-            if (!key) { alert('Enter a key'); return; }
-            showLoading(true);
+        } catch(err) { console.error('loadCoinTransactions error:', err); }
+    }
+    
+    // ==================== DEVICES ====================
+    async function loadDevices() {
+        const key = document.getElementById('deviceKey').value;
+        if (!key) { alert('Enter a key'); return; }
+        showLoading(true);
+        try {
             const res = await fetch(`${API_BASE}/api/admin/key-devices`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, key }) });
             const data = await res.json();
             if (data.success && data.devices) {
-                if (data.devices.length === 0) document.getElementById('devicesList').innerHTML = '<div class="alert">No devices found</div>';
-                else {
+                if (data.devices.length === 0) {
+                    document.getElementById('devicesList').innerHTML = '<div class="alert">No devices found</div>';
+                } else {
                     document.getElementById('devicesList').innerHTML = data.devices.map(d => `
                         <div class="list-item"><div><i class="fas fa-mobile-alt"></i> ${d.device_name || 'Unknown'}</div>
                         <div style="font-size: 10px;">First: ${new Date(d.first_seen).toLocaleString()}<br>Last: ${new Date(d.last_seen).toLocaleString()}<br>IP: ${d.ip_address || 'N/A'}</div>
@@ -738,28 +873,50 @@
                     `).join('');
                 }
             }
-            showLoading(false);
+        } catch(err) { 
+            document.getElementById('devicesList').innerHTML = '<div class="alert alert-error">Failed to load devices</div>';
         }
-        
-        async function removeDevice(key, fp) { if(confirm('Remove device?')){ await fetch(`${API_BASE}/api/admin/remove-device`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, key, deviceFingerprint:fp}) }); loadDevices(); loadKeys(); } }
-        
-        async function loadBannedDevices() {
+        showLoading(false);
+    }
+    
+    async function removeDevice(key, fp) { 
+        if(confirm('Remove device?')){ 
+            await fetch(`${API_BASE}/api/admin/remove-device`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, key, deviceFingerprint:fp}) }); 
+            loadDevices(); 
+            loadKeys(); 
+        } 
+    }
+    
+    async function loadBannedDevices() {
+        try {
             const res = await fetch(`${API_BASE}/api/admin/banned-devices`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
             const data = await res.json();
             if (data.success && data.devices) {
                 document.getElementById('bannedDevicesList').innerHTML = data.devices.map(d => `
-                    <div class="list-item"><div><i class="fas fa-fingerprint"></i> ${d.device_fingerprint}</div>
+                    <div class="list-item"><div><i class="fas fa-fingerprint"></i> ${d.device_fingerprint.substring(0, 30)}...</div>
                     <div>Reason: ${d.reason || '-'} | Banned: ${new Date(d.banned_at).toLocaleString()}</div>
                     <button class="btn btn-success btn-sm" onclick="unbanDevice('${d.device_fingerprint}')">Unban</button>
                 `).join('');
             }
-        }
-        
-        async function banDevice() { const fp = document.getElementById('banDeviceFp').value; const reason = document.getElementById('banDeviceReason').value; if(!fp){ alert('Device fingerprint required'); return; } await fetch(`${API_BASE}/api/admin/ban-device`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, deviceFingerprint:fp, reason}) }); loadBannedDevices(); }
-        async function unbanDevice(fp) { await fetch(`${API_BASE}/api/admin/unban-device`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, deviceFingerprint:fp}) }); loadBannedDevices(); }
-        
-        // ==================== IP BAN ====================
-        async function loadBannedIps() {
+        } catch(err) { console.error('loadBannedDevices error:', err); }
+    }
+    
+    async function banDevice() { 
+        const fp = document.getElementById('banDeviceFp').value; 
+        const reason = document.getElementById('banDeviceReason').value; 
+        if(!fp){ alert('Device fingerprint required'); return; } 
+        await fetch(`${API_BASE}/api/admin/ban-device`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, deviceFingerprint:fp, reason}) }); 
+        loadBannedDevices(); 
+    }
+    
+    async function unbanDevice(fp) { 
+        await fetch(`${API_BASE}/api/admin/unban-device`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, deviceFingerprint:fp}) }); 
+        loadBannedDevices(); 
+    }
+    
+    // ==================== IP BAN ====================
+    async function loadBannedIps() {
+        try {
             const res = await fetch(`${API_BASE}/api/admin/banned-ips`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
             const data = await res.json();
             if (data.success && data.ips) {
@@ -769,13 +926,25 @@
                     <button class="btn btn-success btn-sm" onclick="unbanIp('${ip.ip_address}')">Unban</button>
                 `).join('');
             }
-        }
-        
-        async function banIp() { const ip = document.getElementById('banIp').value; const reason = document.getElementById('banReason').value; if(!ip){ alert('IP required'); return; } await fetch(`${API_BASE}/api/admin/ban-ip`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, ip, reason}) }); loadBannedIps(); }
-        async function unbanIp(ip) { await fetch(`${API_BASE}/api/admin/unban-ip`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, ip}) }); loadBannedIps(); }
-        
-        // ==================== SECURITY LOGS ====================
-        async function loadSecurityLogs() {
+        } catch(err) { console.error('loadBannedIps error:', err); }
+    }
+    
+    async function banIp() { 
+        const ip = document.getElementById('banIp').value; 
+        const reason = document.getElementById('banReason').value; 
+        if(!ip){ alert('IP required'); return; } 
+        await fetch(`${API_BASE}/api/admin/ban-ip`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, ip, reason}) }); 
+        loadBannedIps(); 
+    }
+    
+    async function unbanIp(ip) { 
+        await fetch(`${API_BASE}/api/admin/unban-ip`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, ip}) }); 
+        loadBannedIps(); 
+    }
+    
+    // ==================== SECURITY LOGS ====================
+    async function loadSecurityLogs() {
+        try {
             const res = await fetch(`${API_BASE}/api/admin/security-logs`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
             const data = await res.json();
             if (data.success && data.logs) {
@@ -785,10 +954,12 @@
                     <div style="font-size: 10px;">IP: ${l.ip_address || 'N/A'}</div>
                 `).join('');
             }
-        }
-        
-        // ==================== ANNOUNCEMENTS ====================
-        async function loadAnnouncements() {
+        } catch(err) { console.error('loadSecurityLogs error:', err); }
+    }
+    
+    // ==================== ANNOUNCEMENTS ====================
+    async function loadAnnouncements() {
+        try {
             const res = await fetch(`${API_BASE}/api/admin/announcements`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
             const data = await res.json();
             if (data.success && data.announcements) {
@@ -799,32 +970,37 @@
                     <button class="btn btn-danger btn-sm" onclick="deleteAnnouncement(${a.id})">Delete</button>
                 `).join('');
             }
-        }
-        
-        async function createAnnouncement() {
-            const title = document.getElementById('announceTitle').value;
-            const content = document.getElementById('announceContent').value;
-            const type = document.getElementById('announceType').value;
-            if (!title || !content) { alert('Title and content required'); return; }
-            await fetch(`${API_BASE}/api/admin/create-announcement`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, title, content, type}) });
-            loadAnnouncements();
-        }
-        
-        async function deleteAnnouncement(id) { await fetch(`${API_BASE}/api/admin/delete-announcement`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, id}) }); loadAnnouncements(); }
-        
-        // ==================== BROADCAST ====================
-        async function sendBroadcast() {
-            const title = document.getElementById('broadcastTitle').value;
-            const message = document.getElementById('broadcastMessage').value;
-            const targetRole = document.getElementById('broadcastTarget').value;
-            if (!title || !message) { alert('Title and message required'); return; }
-            const res = await fetch(`${API_BASE}/api/admin/broadcast`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, title, message, targetRole}) });
-            const data = await res.json();
-            alert(`Broadcast sent to ${data.totalSent} users`);
-            loadBroadcastHistory();
-        }
-        
-        async function loadBroadcastHistory() {
+        } catch(err) { console.error('loadAnnouncements error:', err); }
+    }
+    
+    async function createAnnouncement() {
+        const title = document.getElementById('announceTitle').value;
+        const content = document.getElementById('announceContent').value;
+        const type = document.getElementById('announceType').value;
+        if (!title || !content) { alert('Title and content required'); return; }
+        await fetch(`${API_BASE}/api/admin/create-announcement`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, title, content, type}) });
+        loadAnnouncements();
+    }
+    
+    async function deleteAnnouncement(id) { 
+        await fetch(`${API_BASE}/api/admin/delete-announcement`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, id}) }); 
+        loadAnnouncements(); 
+    }
+    
+    // ==================== BROADCAST ====================
+    async function sendBroadcast() {
+        const title = document.getElementById('broadcastTitle').value;
+        const message = document.getElementById('broadcastMessage').value;
+        const targetRole = document.getElementById('broadcastTarget').value;
+        if (!title || !message) { alert('Title and message required'); return; }
+        const res = await fetch(`${API_BASE}/api/admin/broadcast`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, title, message, targetRole}) });
+        const data = await res.json();
+        alert(`Broadcast sent to ${data.totalSent} users`);
+        loadBroadcastHistory();
+    }
+    
+    async function loadBroadcastHistory() {
+        try {
             const res = await fetch(`${API_BASE}/api/admin/broadcast-history`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
             const data = await res.json();
             if (data.success && data.broadcasts) {
@@ -834,10 +1010,12 @@
                     <div style="font-size: 10px;">${new Date(b.created_at).toLocaleString()}</div>
                 `).join('');
             }
-        }
-        
-        // ==================== SETTINGS ====================
-        async function loadSettings() {
+        } catch(err) { console.error('loadBroadcastHistory error:', err); }
+    }
+    
+    // ==================== SETTINGS ====================
+    async function loadSettings() {
+        try {
             const res = await fetch(`${API_BASE}/api/admin/get-settings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
             const data = await res.json();
             if (data.success && data.settings) {
@@ -847,24 +1025,26 @@
                 document.getElementById('settingIpLock').value = data.settings.ip_lock_enabled || 'true';
                 document.getElementById('settingDeviceLock').value = data.settings.device_lock_enabled || 'true';
             }
-        }
-        
-        async function saveSettings() {
-            const settings = {
-                default_max_devices: document.getElementById('settingDefaultMaxDevices').value,
-                max_keys_per_user: document.getElementById('settingMaxKeysPerUser').value,
-                default_duration_hours: document.getElementById('settingDefaultDuration').value,
-                ip_lock_enabled: document.getElementById('settingIpLock').value,
-                device_lock_enabled: document.getElementById('settingDeviceLock').value
-            };
-            showLoading(true);
-            await fetch(`${API_BASE}/api/admin/settings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, ...settings }) });
-            showToast('Settings saved', 'success');
-            showLoading(false);
-        }
-        
-        // ==================== MAINTENANCE ====================
-        async function checkMaintenanceStatus() {
+        } catch(err) { console.error('loadSettings error:', err); }
+    }
+    
+    async function saveSettings() {
+        const settings = {
+            default_max_devices: document.getElementById('settingDefaultMaxDevices').value,
+            max_keys_per_user: document.getElementById('settingMaxKeysPerUser').value,
+            default_duration_hours: document.getElementById('settingDefaultDuration').value,
+            ip_lock_enabled: document.getElementById('settingIpLock').value,
+            device_lock_enabled: document.getElementById('settingDeviceLock').value
+        };
+        showLoading(true);
+        await fetch(`${API_BASE}/api/admin/settings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, ...settings }) });
+        showToast('Settings saved', 'success');
+        showLoading(false);
+    }
+    
+    // ==================== MAINTENANCE ====================
+    async function checkMaintenanceStatus() {
+        try {
             const res = await fetch(`${API_BASE}/api/admin/maintenance/settings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
             const data = await res.json();
             if (data.success) {
@@ -872,43 +1052,55 @@
                     ? `<div class="alert alert-warning">⚠️ MAINTENANCE ACTIVE<br>${data.settings.maintenance_message}<br>Est: ${data.settings.maintenance_estimated_time}</div>`
                     : `<div class="alert alert-success">✅ System Online</div>`;
             }
-        }
+        } catch(err) { console.error('checkMaintenanceStatus error:', err); }
+    }
+    
+    async function enableMaintenance() {
+        const msg = document.getElementById('maintenanceMessage').value;
+        const time = document.getElementById('maintenanceTime').value;
+        await fetch(`${API_BASE}/api/admin/maintenance/enable`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, message:msg, estimatedTime:time}) });
+        checkMaintenanceStatus();
+    }
+    
+    async function disableMaintenance() {
+        await fetch(`${API_BASE}/api/admin/maintenance/disable`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token}) });
+        checkMaintenanceStatus();
+    }
+    
+    // ==================== TAB SWITCH ====================
+    function switchTab(tab) {
+        const panels = ['keys', 'bulk', 'users', 'resellers', 'coins', 'devices', 'ipban', 'security', 'announce', 'broadcast', 'settings'];
+        panels.forEach(p => { 
+            const el = document.getElementById(`panel${p.charAt(0).toUpperCase() + p.slice(1)}`);
+            if (el) el.classList.remove('active');
+        });
+        const activePanel = document.getElementById(`panel${tab.charAt(0).toUpperCase() + tab.slice(1)}`);
+        if (activePanel) activePanel.classList.add('active');
         
-        async function enableMaintenance() {
-            const msg = document.getElementById('maintenanceMessage').value;
-            const time = document.getElementById('maintenanceTime').value;
-            await fetch(`${API_BASE}/api/admin/maintenance/enable`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token, message:msg, estimatedTime:time}) });
-            checkMaintenanceStatus();
-        }
+        document.querySelectorAll('.tab').forEach(btn => btn.classList.remove('active'));
+        if (event && event.target) event.target.classList.add('active');
         
-        async function disableMaintenance() {
-            await fetch(`${API_BASE}/api/admin/maintenance/disable`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token}) });
-            checkMaintenanceStatus();
-        }
-        
-        // ==================== TAB SWITCH ====================
-        function switchTab(tab) {
-            const panels = ['keys', 'bulk', 'users', 'resellers', 'coins', 'devices', 'ipban', 'security', 'announce', 'broadcast', 'settings'];
-            panels.forEach(p => { document.getElementById(`panel${p.charAt(0).toUpperCase() + p.slice(1)}`).classList.remove('active'); });
-            document.getElementById(`panel${tab.charAt(0).toUpperCase() + tab.slice(1)}`).classList.add('active');
-            document.querySelectorAll('.tab').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-            
-            if (tab === 'keys') loadKeys();
-            if (tab === 'users') loadUsers();
-            if (tab === 'resellers') { loadResellers(); loadResellerKeys(); }
-            if (tab === 'coins') loadCoinTransactions();
-            if (tab === 'devices') { loadBannedDevices(); }
-            if (tab === 'ipban') loadBannedIps();
-            if (tab === 'security') loadSecurityLogs();
-            if (tab === 'announce') loadAnnouncements();
-            if (tab === 'broadcast') loadBroadcastHistory();
-            if (tab === 'settings') loadSettings();
-        }
-        
-        // ==================== INIT ====================
-        const savedToken = localStorage.getItem('admin_token');
-        if (savedToken) { token = savedToken; document.getElementById('loginContainer').style.display = 'none'; document.getElementById('dashboard').style.display = 'block'; initCharts(); refreshAllData(); }
-    </script>
+        if (tab === 'keys') loadKeys();
+        if (tab === 'users') loadUsers();
+        if (tab === 'resellers') { loadResellers(); loadResellerKeys(); }
+        if (tab === 'coins') loadCoinTransactions();
+        if (tab === 'devices') { loadBannedDevices(); }
+        if (tab === 'ipban') loadBannedIps();
+        if (tab === 'security') loadSecurityLogs();
+        if (tab === 'announce') loadAnnouncements();
+        if (tab === 'broadcast') loadBroadcastHistory();
+        if (tab === 'settings') loadSettings();
+    }
+    
+    // ==================== INIT ====================
+    const savedToken = localStorage.getItem('admin_token');
+    if (savedToken) { 
+        token = savedToken; 
+        document.getElementById('loginContainer').style.display = 'none'; 
+        document.getElementById('dashboard').style.display = 'block'; 
+        initCharts(); 
+        refreshAllData(); 
+    }
+</script>
 </body>
 </html>
